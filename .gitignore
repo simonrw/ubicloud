@@ -2,6 +2,7 @@
 coverage
 spec/examples.txt
 demo/.env
+config/*
 
 # Frontend
 node_modules

@@ -7,6 +7,10 @@ require "roda"
 
 class Clover < Roda
   route do |r|
+    r.get "up" do
+      "running"
+    end
+
     r.on "api" do
       r.run CloverApi
     end
