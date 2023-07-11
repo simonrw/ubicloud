@@ -179,7 +179,7 @@ class VmSetup
     r "ip netns exec #{q_vm} bash -c 'echo 1 > /proc/sys/net/ipv4/conf/vethi#{q_vm}/proxy_arp'"
     r "ip netns exec #{q_vm} bash -c 'echo 1 > /proc/sys/net/ipv4/conf/tap#{q_vm}/proxy_arp'"
 
-    r "ip -n #{q_vm} addr replace 192.168.0.1/24 dev tap#{q_vm}"
+    r "ip -n #{q_vm} addr replace 192.168.0.1/16 dev tap#{q_vm}"
   end
 
   def nat4(ip4, private_ipv4)
@@ -190,6 +190,7 @@ class VmSetup
     private_sub = NetAddr::IPv4Net.parse(private_ipv4)
     private_ipv4 = private_sub.network.to_s
 
+    # TODO: change the daddr != 192.168.0.0/16 to include more private subnets
     vp.write_nftables_conf(<<NFTABLES_CONF)
 table ip raw {
   chain prerouting {

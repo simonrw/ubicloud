@@ -10,6 +10,7 @@ class Vm < Sequel::Model
   one_to_one :sshable, key: :id
   one_to_one :assigned_vm_address, key: :dst_vm_id, class: :AssignedVmAddress
   one_to_many :vm_storage_volumes, key: :vm_id
+  many_to_one :virtual_network
 
   dataset_module Authorization::Dataset
 

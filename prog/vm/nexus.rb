@@ -30,6 +30,7 @@ class Prog::Vm::Nexus < Prog::Base
     key_wrapping_iv = cipher.random_iv
 
     # if the caller hasn't provided any subnets, generate a random one
+    # TODO: this should be handled by the vnet_nexus
     if private_subnets.empty?
       private_subnets.append([random_ula, random_private_ipv4])
     end
@@ -73,18 +74,6 @@ class Prog::Vm::Nexus < Prog::Base
 
   def vm_home
     File.join("", "vm", vm_name)
-  end
-
-  def self.random_ula
-    network_address = NetAddr::IPv6.new((SecureRandom.bytes(7) + 0xfd.chr).unpack1("Q<") << 64)
-    network_mask = NetAddr::Mask128.new(64)
-    NetAddr::IPv6Net.new(network_address, network_mask)
-  end
-
-  def self.random_private_ipv4
-    addr = NetAddr::IPv4Net.parse("192.168.0.0/24")
-    network_mask = NetAddr::Mask32.new(32)
-    NetAddr::IPv4Net.new(addr.nth(SecureRandom.random_number(addr.len - 2).to_i + 2), network_mask)
   end
 
   def vm
@@ -146,11 +135,10 @@ class Prog::Vm::Nexus < Prog::Base
     DB[<<SQL, vm.cores, vm.mem_gib_ratio, vm.mem_gib, vm.location]
 SELECT *, vm_host.total_mem_gib / vm_host.total_cores AS mem_ratio
 FROM vm_host
-WHERE vm_host.used_cores + ? < vm_host.total_cores
-AND vm_host.total_mem_gib / vm_host.total_cores >= ?
-AND vm_host.used_hugepages_1g + ? < vm_host.total_hugepages_1g
+WHERE vm_host.used_cores + 1 < vm_host.total_cores
+AND vm_host.total_mem_gib / vm_host.total_cores >= 4
+AND vm_host.used_hugepages_1g + 4 < vm_host.total_hugepages_1g
 AND vm_host.allocation_state = 'accepting'
-AND vm_host.location = ?
 ORDER BY mem_ratio, used_cores
 SQL
   end
