@@ -5,7 +5,7 @@ require_relative "../../model/spec_helper"
 RSpec.describe Prog::Vm::HostNexus do
   subject(:nx) { described_class.new(st) }
 
-  let(:st) { Strand.new }
+  let(:st) { Strand.new(stack: [{}]) }
   let(:hetzner_ips) {
     [
       {ip_address: "127.0.0.1", source_host_ip: "127.0.0.1", is_failover: false},

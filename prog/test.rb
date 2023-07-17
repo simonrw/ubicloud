@@ -77,6 +77,11 @@ class Prog::Test < Prog::Base
     donate
   end
 
+  def set_expired_deadline
+    register_deadline(:budder, -1)
+    hop :pusher1
+  end
+
   def bad_pop
     pop nil
   end

@@ -22,7 +22,7 @@ RSpec.describe Prog::Base do
   describe "#pop" do
     it "can reject unanticipated values" do
       expect {
-        Strand.new(prog: "Test", label: "bad_pop").unsynchronized_run
+        Strand.new(prog: "Test", label: "bad_pop", stack: [{}]).unsynchronized_run
       }.to raise_error RuntimeError, "BUG: must pop with string or hash"
     end
 
@@ -53,6 +53,7 @@ RSpec.describe Prog::Base do
     expect {
       st.run
     }.to change { st.label }.from("pusher2").to "pusher1"
+
     expect(st.retval).to eq({"msg" => "2"})
 
     st.run
@@ -72,7 +73,7 @@ RSpec.describe Prog::Base do
 
   it "requires a symbol for hop" do
     expect {
-      Strand.new(prog: "Test", label: "invalid_hop").unsynchronized_run
+      Strand.new(prog: "Test", label: "invalid_hop", stack: [{}]).unsynchronized_run
     }.to raise_error RuntimeError, "BUG: #hop only accepts a symbol"
   end
 
@@ -104,6 +105,31 @@ RSpec.describe Prog::Base do
       expect(described_class::Exit.new(
         Strand.new(prog: "TestProg", label: "exiting_label"), {"msg" => "done"}
       ).to_s).to eq('Strand exits from TestProg#exiting_label with {"msg"=>"done"}')
+    end
+  end
+
+  context "deadlines" do
+    it "triggers a page exactly once when deadline is expired" do
+      st = Strand.create(prog: "Test", label: :set_expired_deadline)
+      st.unsynchronized_run
+      expect {
+        st.unsynchronized_run
+      }.to change { Page.active.count }.from(0).to(1)
+
+      expect {
+        st.unsynchronized_run
+      }.not_to change { Page.active.count }.from(1)
+    end
+
+    it "resolves the page once the target is reached" do
+      st = Strand.create(prog: "Test", label: :napper)
+      st.stack.first["deadline_target"] = :napper
+      st.stack.first["deadline_at"] = Time.now - 1
+      st.stack.first["page_id"] = Page.create.id
+
+      expect {
+        st.unsynchronized_run
+      }.to change { Page.active.count }.from(1).to(0)
     end
   end
 end

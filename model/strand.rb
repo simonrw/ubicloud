@@ -2,6 +2,8 @@
 
 require_relative "../model"
 
+require "time"
+
 class Strand < Sequel::Model
   LEASE_EXPIRATION = 120
   many_to_one :parent, key: :parent_id, class: self
@@ -70,6 +72,21 @@ SQL
   end
 
   def unsynchronized_run
+    stack.each do |frame|
+      next unless (deadline_at = frame["deadline_at"])
+
+      if label == frame["deadline_target"].to_s
+        frame.delete("deadline_target")
+        frame.delete("deadline_at")
+        if frame["page_id"]
+          Page[frame["page_id"]].update(resolved_at: Time.now)
+          frame.delete("page_id")
+        end
+      elsif Time.now > Time.parse(deadline_at.to_s)
+        frame["page_id"] ||= Page.create(summary: "A deadline is expired!").id
+      end
+    end
+
     DB.transaction do
       SemSnap.use(id) do |snap|
         load(snap).public_send(label)

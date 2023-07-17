@@ -21,6 +21,8 @@ class Prog::Vm::HostNexus < Prog::Base
   end
 
   def start
+    register_deadline(:prep, 4 * 60)
+
     bud Prog::BootstrapRhizome
     hop :wait_bootstrap_rhizome
   end
@@ -32,6 +34,8 @@ class Prog::Vm::HostNexus < Prog::Base
   end
 
   def prep
+    register_deadline(:setup_hugepages, 5 * 60)
+
     bud Prog::Vm::PrepHost
     bud Prog::LearnNetwork unless vm_host.net6
     bud Prog::LearnMemory
@@ -67,6 +71,8 @@ class Prog::Vm::HostNexus < Prog::Base
   end
 
   def setup_hugepages
+    register_deadline(:setup_spdk, 10 * 60)
+
     bud Prog::SetupHugepages
     hop :wait_setup_hugepages
   end
@@ -78,6 +84,8 @@ class Prog::Vm::HostNexus < Prog::Base
   end
 
   def setup_spdk
+    register_deadline(:wait, 3 * 60)
+
     bud Prog::SetupSpdk
     hop :wait_setup_spdk
   end

@@ -128,7 +128,7 @@ end
   end
 
   def frame
-    strand.stack&.first.freeze
+    strand.stack&.first.dup.freeze
   end
 
   def retval
@@ -177,6 +177,11 @@ end
     fail "BUG: #hop only accepts a symbol" unless label.is_a? Symbol
     label = label.to_s
     fail Hop.new(@strand.prog, @strand.label, {label: label, retval: nil})
+  end
+
+  def register_deadline(deadline_target, deadline_in)
+    strand.stack.first["deadline_target"] = deadline_target
+    strand.stack.first["deadline_at"] = Time.now + deadline_in
   end
 
   # Copied from sequel/model/inflections.rb's camelize, to convert

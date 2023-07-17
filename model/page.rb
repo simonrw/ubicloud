@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+p = # frozen_string_literal: true
 
 require_relative "../model"
 
