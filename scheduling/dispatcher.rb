@@ -12,7 +12,11 @@ class Scheduling::Dispatcher
   def scan
     idle_connections = Config.db_pool - @threads.count - 1
     if idle_connections < 1
-      puts "Not enough database connections. Waiting active connections to finish their work. db_pool:#{Config.db_pool} active_threads:#{@threads.count}"
+      Clog.info("Not enough database connections. Waiting active connections to finish their work.",
+        pool_state: {
+          db_pool: Config.db_pool,
+          active_threads: threads.count
+        })
       return []
     end
 
@@ -23,8 +27,11 @@ class Scheduling::Dispatcher
 
   def self.print_thread_dump
     Thread.list.each do |thread|
-      puts "Thread: #{thread.inspect}"
-      puts thread.backtrace&.join("\n")
+      # Handle threads separately to be more kind to any log retention
+      # system.  I've encountered problems trying to dump every stack
+      # in one go.
+      Clog.warn("Thread: #{thread.inspect}",
+        backtrace: thread.backtrace.map(&:to_s))
     end
   end
 
