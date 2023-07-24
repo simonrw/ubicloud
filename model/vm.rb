@@ -41,12 +41,12 @@ class Vm < Sequel::Model
     assigned_vm_address&.ip
   end
 
-  Product = Struct.new(:line, :cores)
+  def size
+    "#{line}.#{core_count}x"
+  end
 
-  def product
-    return @product if @product
+  def self.parse_vm_size(size)
     fail "BUG: cannot parse vm size" unless size =~ /\A(.*)\.(\d+)x\z/
-    line = $1
 
     # YYY: Hack to deal with the presentation currently being in
     # "vcpu" which has a pretty specific meaning being ambigious to
@@ -63,23 +63,22 @@ class Vm < Sequel::Model
     # As an aside, although we probably want to reserve a core an I/O
     # process of some kind (e.g. SPDK, reserving the entire memory
     # quota for it may be overkill.
-    cores = Integer($2) / 2
-    @product = Product.new(line, cores)
+    [$1, Integer($2) / 2]
   end
 
   def mem_gib_ratio
-    @mem_gib_ratio ||= case product.line
+    @mem_gib_ratio ||= case line
     when "m5a"
       4
     when "c5a"
       2
     else
-      fail "BUG: unrecognized product line"
+      fail "BUG: unrecognized vm line"
     end
   end
 
   def mem_gib
-    product.cores * mem_gib_ratio
+    core_count * mem_gib_ratio
   end
 
   # cloud-hypervisor takes topology information in this format:
@@ -113,10 +112,10 @@ class Vm < Sequel::Model
     total_packages = vm_host.total_sockets
 
     # Computed all-system statistics, now scale it down to meet VM needs.
-    proportion = Rational(cores) / vm_host.total_cores
+    proportion = Rational(core_count) / vm_host.total_cores
     packages = (total_packages * proportion).ceil
     dies_per_package = (total_dies_per_package * proportion).ceil
-    cores_per_die = Rational(cores) / (packages * dies_per_package)
+    cores_per_die = Rational(core_count) / (packages * dies_per_package)
     fail "BUG: need uniform number of cores allocated per die" unless cores_per_die.denominator == 1
 
     topo = [threads_per_core, cores_per_die, dies_per_package, packages].map { |num|
@@ -127,16 +126,12 @@ class Vm < Sequel::Model
     }
 
     # :nocov:
-    unless topo.reduce(&:*) == threads_per_core * cores
+    unless topo.reduce(&:*) == threads_per_core * core_count
       fail "BUG: arithmetic does not result in the correct number of vcpus"
     end
     # :nocov:
 
     CloudHypervisorCpuTopo.new(*topo)
-  end
-
-  def cores
-    product.cores
   end
 
   def self.ubid_to_name(id)

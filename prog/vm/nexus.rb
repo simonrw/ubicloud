@@ -33,9 +33,11 @@ class Prog::Vm::Nexus < Prog::Base
       private_subnets.append([random_ula, random_private_ipv4])
     end
 
+    line, core_count = Vm.parse_vm_size(size)
     DB.transaction do
       vm = Vm.create(public_key: public_key, unix_user: unix_user,
-        name: name, size: size, location: location, boot_image: boot_image) { _1.id = ubid.to_uuid }
+        name: name, line: line, core_count: core_count, location: location,
+        boot_image: boot_image) { _1.id = ubid.to_uuid }
       vm.associate_with_project(project)
       private_subnets.each do |net6, net4|
         VmPrivateSubnet.create_with_id(vm_id: vm.id, net6: net6.to_s, net4: net4.to_s)
@@ -142,7 +144,7 @@ class Prog::Vm::Nexus < Prog::Base
   end
 
   def allocation_dataset
-    DB[<<SQL, vm.cores, vm.mem_gib_ratio, vm.mem_gib, vm.storage_size_gib, vm.location]
+    DB[<<SQL, vm.core_count, vm.mem_gib_ratio, vm.mem_gib, vm.storage_size_gib, vm.location]
 SELECT *, vm_host.total_mem_gib / vm_host.total_cores AS mem_ratio
 FROM vm_host
 WHERE vm_host.used_cores + ? < vm_host.total_cores
@@ -165,7 +167,7 @@ SQL
     VmHost.dataset
       .where(id: vm_host_id)
       .update(
-        used_cores: Sequel[:used_cores] + vm.cores,
+        used_cores: Sequel[:used_cores] + vm.core_count,
         used_hugepages_1g: Sequel[:used_hugepages_1g] + vm.mem_gib,
         available_storage_gib: Sequel[:available_storage_gib] - vm.storage_size_gib
       )
@@ -363,7 +365,7 @@ SQL
       vm.vm_storage_volumes_dataset.delete
 
       VmHost.dataset.where(id: vm.vm_host_id).update(
-        used_cores: Sequel[:used_cores] - vm.cores
+        used_cores: Sequel[:used_cores] - vm.core_count
       )
       vm.projects.map { vm.dissociate_with_project(_1) }
       # YYY: We should remove existing tunnels on dataplane too. Not hopping to
