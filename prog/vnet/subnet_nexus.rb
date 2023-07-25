@@ -25,19 +25,19 @@ class Prog::Vnet::SubnetNexus < Prog::Base
     end
   end
 
-  def wait
+  label def wait
     when_destroy_set? do
-      hop :destroy
+      hop_destroy
     end
 
     when_refresh_mesh_set? do
       private_subnet.update(state: "refreshing_mesh")
-      hop :refresh_mesh
+      hop_refresh_mesh
     end
 
     when_refresh_keys_set? do
       private_subnet.update(state: "refreshing_keys")
-      hop :refresh_keys
+      hop_refresh_keys
     end
 
     if private_subnet.last_rekey_at < Time.now - 60 * 60 * 24
@@ -59,7 +59,7 @@ class Prog::Vnet::SubnetNexus < Prog::Base
     SecureRandom.random_number(100000) + 1
   end
 
-  def refresh_keys
+  label def refresh_keys
     payload = {}
 
     private_subnet.nics.each do |nic|
@@ -75,40 +75,40 @@ class Prog::Vnet::SubnetNexus < Prog::Base
       nic.incr_start_rekey
     end
 
-    hop :wait_inbound_setup
+    hop_wait_inbound_setup
   end
 
-  def wait_inbound_setup
+  label def wait_inbound_setup
     if private_subnet.nics.all? { |nic| nic.strand.label == "wait_rekey_outbound_trigger" }
       private_subnet.nics.each(&:incr_trigger_outbound_update)
-      hop :wait_outbound_setup
+      hop_wait_outbound_setup
     end
 
     donate
   end
 
-  def wait_outbound_setup
+  label def wait_outbound_setup
     if private_subnet.nics.all? { |nic| nic.strand.label == "wait_rekey_old_state_drop_trigger" }
       private_subnet.nics.each(&:incr_old_state_drop_trigger)
-      hop :wait_old_state_drop
+      hop_wait_old_state_drop
     end
 
     donate
   end
 
-  def wait_old_state_drop
+  label def wait_old_state_drop
     if private_subnet.nics.all? { |nic| nic.strand.label == "wait" }
       private_subnet.update(state: "waiting", last_rekey_at: Time.now)
       private_subnet.nics.each do |nic|
         nic.update(encryption_key: nil, rekey_payload: nil)
       end
       decr_refresh_keys
-      hop :wait
+      hop_wait
     end
     donate
   end
 
-  def refresh_mesh
+  label def refresh_mesh
     DB.transaction do
       private_subnet.nics.each do |nic|
         nic.update(encryption_key: gen_encryption_key)
@@ -116,10 +116,10 @@ class Prog::Vnet::SubnetNexus < Prog::Base
       end
     end
 
-    hop :wait_refresh_mesh
+    hop_wait_refresh_mesh
   end
 
-  def wait_refresh_mesh
+  label def wait_refresh_mesh
     unless private_subnet.nics.any? { SemSnap.new(_1.id).set?("refresh_mesh") }
       DB.transaction do
         private_subnet.update(state: "waiting")
@@ -130,13 +130,13 @@ class Prog::Vnet::SubnetNexus < Prog::Base
         decr_refresh_mesh
       end
 
-      hop :wait
+      hop_wait
     end
 
     nap 1
   end
 
-  def destroy
+  label def destroy
     if private_subnet.nics.any? { |n| !n.vm_id.nil? }
       fail "Cannot destroy subnet with active nics, first clean up the attached resources"
     end
