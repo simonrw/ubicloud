@@ -202,12 +202,12 @@ SQL
         if (vm_adr = vm.assigned_vm_address)
           vm_adr.active_billing_record.update(span: Sequel.pg_range(vm_adr.active_billing_record.span.begin...Time.now))
         end
-        hop :destroy
+        hop_destroy
       end
     end
   end
 
-  def start
+  label def start
     register_deadline(:wait, 10 * 60)
 
     vm_host_id = allocate
@@ -234,10 +234,10 @@ SQL
         )
       end
     end
-    hop :create_unix_user
+    hop_create_unix_user
   end
 
-  def create_unix_user
+  label def create_unix_user
     # create vm's user and home directory
     begin
       host.sshable.cmd("sudo adduser --disabled-password --gecos '' --home #{vm_home.shellescape} #{q_vm}")
@@ -245,14 +245,14 @@ SQL
       raise unless /adduser: The user `.*' already exists\./.match?(ex.stderr)
     end
 
-    hop :prep
+    hop_prep
   end
 
   def params_path
     @params_path ||= File.join(vm_home, "prep.json")
   end
 
-  def prep
+  label def prep
     topo = vm.cloud_hypervisor_cpu_topology
 
     # we don't write secrets to params_json, because it
@@ -284,57 +284,57 @@ SQL
     host.sshable.cmd("echo #{params_json.shellescape} | sudo -u #{q_vm} tee #{params_path.shellescape}")
 
     host.sshable.cmd("sudo bin/prepvm.rb #{params_path.shellescape}", stdin: secrets_json)
-    hop :trigger_refresh_mesh
+    hop_trigger_refresh_mesh
   end
 
-  def trigger_refresh_mesh
+  label def trigger_refresh_mesh
     vm.private_subnets.each { |ps| ps.incr_refresh_mesh }
 
-    hop :run
+    hop_run
   end
 
-  def run
+  label def run
     host.sshable.cmd("sudo systemctl start #{q_vm}")
-    hop :wait_sshable
+    hop_wait_sshable
   end
 
-  def wait_sshable
+  label def wait_sshable
     addr = vm.ephemeral_net4 || vm.ephemeral_net6.nth(2)
     out = `ssh -o BatchMode=yes -o ConnectTimeout=1 -o PreferredAuthentications=none user@#{addr} 2>&1`
     if out.include? "Host key verification failed."
       vm.update(display_state: "running")
-      hop :wait
+      hop_wait
     end
     nap 1
   end
 
-  def wait
+  label def wait
     when_refresh_mesh_set? do
-      hop :refresh_mesh
+      hop_refresh_mesh
     end
 
     when_start_after_host_reboot_set? do
-      hop :start_after_host_reboot
+      hop_start_after_host_reboot
     end
 
     nap 30
   end
 
-  def refresh_mesh
+  label def refresh_mesh
     register_deadline(:wait, 5 * 60)
 
     # YYY: Implement a robust mesh networking concurrency algorithm.
     unless Config.development?
       decr_refresh_mesh
-      hop :wait
+      hop_wait
     end
 
     vm.private_subnets.each { |ps| ps.incr_refresh_mesh }
     decr_refresh_mesh
-    hop :wait
+    hop_wait
   end
 
-  def destroy
+  label def destroy
     register_deadline(nil, 5 * 60)
 
     vm.update(display_state: "deleting")
@@ -377,7 +377,7 @@ SQL
     pop "vm deleted"
   end
 
-  def start_after_host_reboot
+  label def start_after_host_reboot
     register_deadline(:wait, 5 * 60)
 
     vm.update(display_state: "starting")
@@ -396,6 +396,6 @@ SQL
     # trigger setting up private subnet connections
     incr_refresh_mesh
 
-    hop :wait
+    hop_wait
   end
 end
