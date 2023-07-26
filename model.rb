@@ -67,6 +67,10 @@ module ResourceMethods
     super
   end
 
+  def display_state
+    self.class::DISPLAY_STATES[strand.label.intern]
+  end
+
   module ClassMethods
     # Adapted from sequel/model/inflections.rb's underscore, to convert
     # class names into symbols

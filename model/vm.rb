@@ -26,6 +26,19 @@ class Vm < Sequel::Model
 
   include Authorization::TaggableMethods
 
+  DISPLAY_STATES = {
+    start: "creating",
+    create_unix_user: "creating",
+    prep: "creating",
+    trigger_refresh_mesh: "creating",
+    run: "creating",
+    wait_sshable: "creating",
+    wait: "running",
+    refresh_mesh: "running",
+    destroy: "deleting",
+    start_after_host_reboot: "starting"
+  }
+
   def path
     "/location/#{location}/vm/#{name}"
   end

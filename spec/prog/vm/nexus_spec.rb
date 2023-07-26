@@ -395,14 +395,12 @@ RSpec.describe Prog::Vm::Nexus do
     it "hops to wait if sshable" do
       expect(vm).to receive(:ephemeral_net4).and_return("10.0.0.1")
       expect(nx).to receive(:`).with("ssh -o BatchMode=yes -o ConnectTimeout=1 -o PreferredAuthentications=none user@10.0.0.1 2>&1").and_return("Host key verification failed.")
-      expect(vm).to receive(:update).with(display_state: "running").and_return(true)
       expect { nx.wait_sshable }.to hop("wait")
     end
 
     it "uses ipv6 if ipv4 is not enabled" do
       expect(vm).to receive(:ephemeral_net6).and_return(NetAddr::IPv6Net.parse("2a01:4f8:10a:128b:3bfa::/79"))
       expect(nx).to receive(:`).with("ssh -o BatchMode=yes -o ConnectTimeout=1 -o PreferredAuthentications=none user@2a01:4f8:10a:128b:3bfa::2 2>&1").and_return("Host key verification failed.")
-      expect(vm).to receive(:update).with(display_state: "running").and_return(true)
       expect { nx.wait_sshable }.to hop("wait")
     end
   end
@@ -477,7 +475,6 @@ RSpec.describe Prog::Vm::Nexus do
 
       before do
         expect(vm).to receive(:vm_host).and_return(vm_host)
-        expect(vm).to receive(:update).with(display_state: "deleting")
       end
 
       it "absorbs an already deleted errors as a success" do
@@ -523,7 +520,6 @@ RSpec.describe Prog::Vm::Nexus do
       expect(nic).to receive(:update).with(vm_id: nil)
       expect(nic).to receive(:incr_destroy)
       expect(vm).to receive(:nics).and_return([nic])
-      expect(vm).to receive(:update).with(display_state: "deleting")
       expect(vm).to receive(:destroy)
 
       expect { nx.destroy }.to exit({"msg" => "vm deleted"})
@@ -545,10 +541,15 @@ RSpec.describe Prog::Vm::Nexus do
       )
       expect(sshable).to receive(:cmd).with(/sudo systemctl start vm[0-9a-z]+/)
       expect(nx).to receive(:incr_refresh_mesh)
-      expect(vm).to receive(:update).with(display_state: "starting")
-      expect(vm).to receive(:update).with(display_state: "running")
 
       expect { nx.start_after_host_reboot }.to hop("wait")
+    end
+  end
+
+  it "each label has display state" do
+    expect(described_class.labels.length).to eq(Vm::DISPLAY_STATES.length)
+    described_class.labels.each do |label|
+      expect(Vm::DISPLAY_STATES[label]).not_to be_nil
     end
   end
 end

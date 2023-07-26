@@ -13,7 +13,15 @@ class PrivateSubnet < Sequel::Model
     "192.168.0.0/16"
   ].freeze
 
+  DISPLAY_STATES = {
+    wait: "running",
+    refresh_mesh: "refreshing",
+    wait_refresh_mesh: "refreshing",
+    destroy: "deleting"
+  }
+
   dataset_module Authorization::Dataset
+
   include Authorization::HyperTagMethods
   def hyper_tag_name(project)
     "project/#{project.ubid}/location/#{location}/private-subnet/#{name}"
