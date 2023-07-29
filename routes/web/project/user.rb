@@ -4,6 +4,7 @@ class CloverWeb
   hash_branch(:project_prefix, "user") do |r|
     Authorization.authorize(@current_user.id, "Project:user", @project.id)
     @serializer = Serializers::Web::Account
+    @breadcrumbs << ["User", "#{@project.path}/user"]
 
     r.get true do
       users_with_hyper_tag = @project.user_ids

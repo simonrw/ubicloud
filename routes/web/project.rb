@@ -3,6 +3,7 @@
 class CloverWeb
   hash_branch("project") do |r|
     @serializer = Serializers::Web::Project
+    @breadcrumbs << ["Projects", "/project"]
 
     r.get true do
       @projects = serialize(@current_user.projects)
@@ -17,6 +18,8 @@ class CloverWeb
     end
 
     r.is "create" do
+      @breadcrumbs << ["Create", "/project/create"]
+
       r.get true do
         view "project/create"
       end
@@ -30,10 +33,12 @@ class CloverWeb
         r.halt
       end
 
+      @breadcrumbs << [@project.name, "#{@project.path}/dashboard"]
       @project_data = serialize(@project)
 
       r.get true do
         Authorization.authorize(@current_user.id, "Project:view", @project.id)
+        @breadcrumbs << ["Settings", @project.path]
 
         view "project/show"
       end

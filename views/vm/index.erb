@@ -2,14 +2,7 @@
 
 <% if @vms.count > 0 %>
   <div class="space-y-1">
-    <%== render(
-      "components/breadcrumb",
-      locals: {
-        back: @project_data[:path],
-        parts: [%w[Projects /project], [@project_data[:name], @project_data[:path]], ["Virtual Machines", "#"]]
-      }
-    ) %>
-
+    <%== render("components/breadcrumb") %>
     <%== render(
       "components/page_header",
       locals: {

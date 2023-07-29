@@ -1,13 +1,7 @@
 <% @page_title = "#{@project_data[:name]} - Policy" %>
 
 <div class="space-y-1">
-  <%== render(
-    "components/breadcrumb",
-    locals: {
-      back: "/project",
-      parts: [%w[Projects /project], [@project_data[:name], @project_data[:path]], %w[Policy #]]
-    }
-  ) %>
+  <%== render("components/breadcrumb") %>
   <%== render("components/page_header", locals: { title: "Update Access Policy" }) %>
 </div>
 

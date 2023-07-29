@@ -1,13 +1,8 @@
 <% @page_title = "Close Account" %>
+<% @breadcrumbs = [["My Account", "/account"], ["Close Account", "/account/close-account"]] %>
 
 <div class="space-y-1">
-  <%== render(
-    "components/breadcrumb",
-    locals: {
-      back: "/account",
-      parts: [["My Account", "/account"], ["Close Account", "#"]]
-    }
-  ) %>
+  <%== render("components/breadcrumb") %>
   <%== render("components/page_header", locals: { title: "My Account" }) %>
 </div>
 

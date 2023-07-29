@@ -2,6 +2,7 @@
 
 <% if @projects.count > 0 %>
   <div class="space-y-1">
+    <%== render("components/breadcrumb") %>
     <%== render(
       "components/page_header",
       locals: {

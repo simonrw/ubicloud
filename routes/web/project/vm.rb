@@ -3,6 +3,7 @@
 class CloverWeb
   hash_branch(:project_prefix, "vm") do |r|
     @serializer = Serializers::Web::Vm
+    @breadcrumbs << ["Virtual Machines", "#{@project.path}/vm"]
 
     r.get true do
       @vms = serialize(@project.vms_dataset.authorized(@current_user.id, "Vm:view").all)
@@ -30,6 +31,8 @@ class CloverWeb
     end
 
     r.on "create" do
+      @breadcrumbs << ["Create", "#{@project.path}/vm/create"]
+
       r.get true do
         Authorization.authorize(@current_user.id, "Vm:create", @project.id)
 

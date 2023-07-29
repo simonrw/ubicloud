@@ -3,6 +3,7 @@
 class CloverWeb
   hash_branch(:project_location_prefix, "vm") do |r|
     @serializer = Serializers::Web::Vm
+    @breadcrumbs << ["Virtual Machines", "#{@project.path}/vm"]
 
     r.is String do |vm_name|
       vm = @project.vms_dataset.where(location: @location).where { {Sequel[:vm][:name] => vm_name} }.first
@@ -11,6 +12,8 @@ class CloverWeb
         response.status = 404
         r.halt
       end
+
+      @breadcrumbs << [vm.name, @project.path + vm.path]
 
       r.get true do
         Authorization.authorize(@current_user.id, "Vm:view", vm.id)

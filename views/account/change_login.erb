@@ -1,13 +1,8 @@
 <% @page_title = "Change Email" %>
+<% @breadcrumbs = [["My Account", "/account"], ["Change Email Address", "/account/change-login"]] %>
 
 <div class="space-y-1">
-  <%== render(
-    "components/breadcrumb",
-    locals: {
-      back: "/account",
-      parts: [["My Account", "/account"], ["Change Email Address", "#"]]
-    }
-  ) %>
+  <%== render("components/breadcrumb") %>
   <%== render("components/page_header", locals: { title: "My Account" }) %>
 </div>
 

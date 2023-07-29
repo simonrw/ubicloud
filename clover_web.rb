@@ -200,6 +200,7 @@ class CloverWeb < Roda
     rodauth.load_memory
     rodauth.check_active_session
     @current_user = Account[rodauth.session_value]
+    @breadcrumbs = []
     r.rodauth
     r.root do
       r.redirect rodauth.login_route
