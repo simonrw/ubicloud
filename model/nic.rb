@@ -10,7 +10,7 @@ class Nic < Sequel::Model
   one_to_one :strand, key: :id, class: Strand
   include ResourceMethods
   include SemaphoreMethods
-  semaphore :destroy, :refresh_mesh, :detach_vm
+  semaphore :destroy, :refresh_mesh, :detach_vm, :trigger_policy, :old_state_drop
 
   def self.ubid_type
     UBID::TYPE_NIC

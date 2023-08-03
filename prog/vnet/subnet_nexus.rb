@@ -38,7 +38,76 @@ class Prog::Vnet::SubnetNexus < Prog::Base
       hop :refresh_mesh
     end
 
+    when_refresh_keys_set? do
+      ps.update(state: "refreshing_keys")
+      hop :refresh_keys
+    end
+
     nap 30
+  end
+
+  def gen_encryption_key
+    "0x" + SecureRandom.bytes(36).unpack1("H*")
+  end
+
+  def gen_spi
+    "0x" + SecureRandom.bytes(4).unpack1("H*")
+  end
+
+  def gen_reqid
+    SecureRandom.random_number(100000) + 1
+  end
+
+  def refresh_keys
+    payload = {}
+
+    ps.nics.each do |nic|
+      payload[nic.id] = {
+        encryption_key: gen_encryption_key,
+        spi4: gen_spi,
+        spi6: gen_spi,
+        reqid: gen_reqid
+      }
+    end
+
+    ps.nics.each do |nic|
+      bud Prog::Vnet::RekeyNic, {payload: payload, subject_id: nic.id}
+    end
+
+    hop :wait_state_created
+  end
+
+  def wait_state_created
+    reap
+    DB.transaction do
+      if strand.children.filter { |stc| stc.prog == "Vnet::RekeyNic" }.all? { |stc| stc.label == "wait_policy_trigger" }
+        ps.nics.each do |nic|
+          nic.incr_trigger_policy
+        end
+        hop :wait_policy_updated
+      end
+    end
+
+    donate
+  end
+
+  def wait_policy_updated
+    DB.transaction do
+      if strand.children.filter { |stc| stc.prog == "Vnet::RekeyNic" }.all? { |stc| stc.label == "wait_state_drop_trigger" }
+        ps.nics.each do |nic|
+          nic.incr_old_state_drop
+        end
+        hop :wait_state_dropped
+      end
+    end
+
+    donate
+  end
+
+  def wait_state_dropped
+    reap
+    hop :wait if leaf?
+    donate
   end
 
   def refresh_mesh

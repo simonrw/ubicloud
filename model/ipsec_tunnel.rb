@@ -27,7 +27,7 @@ class IpsecTunnel < Sequel::Model
 
     spi = "0x" + SecureRandom.bytes(4).unpack1("H*")
     spi4 = "0x" + SecureRandom.bytes(4).unpack1("H*")
-    key = src_nic.encryption_key
+    key = "0x" + SecureRandom.bytes(36).unpack1("H*")
 
     # setup source ipsec tunnels
     src_nic.vm.vm_host.sshable.cmd("sudo bin/setup-ipsec " \
