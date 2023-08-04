@@ -29,6 +29,9 @@ gem "jwt"
 gem "pagerduty", ">= 4.0"
 gem "stripe"
 gem "countries"
+gem "rodauth-omniauth", "~> 0.3.3"
+gem "omniauth-github", "~> 2.0"
+gem "omniauth-google-oauth2", "~> 1.1"
 
 group :development do
   gem "brakeman"

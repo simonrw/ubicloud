@@ -47,6 +47,10 @@ module Config
   optional :pagerduty_key, string, clear: true
   optional :stripe_public_key, string, clear: true
   optional :stripe_secret_key, string, clear: true
+  optional :omniauth_github_id, string, clear: true
+  optional :omniauth_github_secret, string, clear: true
+  optional :omniauth_google_id, string, clear: true
+  optional :omniauth_google_secret, string, clear: true
 
   # :nocov:
   override :mail_driver, (production? ? :smtp : :logger), symbol

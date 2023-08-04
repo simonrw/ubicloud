@@ -19,7 +19,7 @@ class CloverWeb < Roda
     csp.default_src :none
     csp.style_src :self
     csp.img_src :self, "data: image/svg+xml"
-    csp.form_action :self, "https://checkout.stripe.com"
+    csp.form_action :self, "https://checkout.stripe.com", "https://github.com/login/oauth/authorize", "https://accounts.google.com/o/oauth2/auth"
     csp.script_src :self, "https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js", "https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"
     csp.connect_src :self
     csp.base_uri :none
@@ -91,6 +91,28 @@ class CloverWeb < Roda
       :disallow_password_reuse, :password_grace_period, :active_sessions,
       :verify_login_change, :change_password_notify, :confirm_password
     title_instance_variable :@page_title
+
+    enable :omniauth
+
+    # :nocov:
+    if Config.omniauth_github_id
+      require "omniauth-github"
+      omniauth_provider :github, Config.omniauth_github_id, Config.omniauth_github_secret
+    end
+    if Config.omniauth_google_id
+      require "omniauth-google-oauth2"
+      omniauth_provider :google_oauth2, Config.omniauth_google_id, Config.omniauth_google_secret, name: :google
+    end
+    # :nocov:
+
+    before_omniauth_create_account do
+      account[:id] = Account.generate_uuid
+      account[:name] = omniauth_name
+    end
+
+    after_omniauth_create_account do
+      Account[account_id].create_project_with_default_policy("Default")
+    end
 
     # :nocov:
     unless Config.development?

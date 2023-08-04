@@ -20,6 +20,7 @@ ENV["MAIL_DRIVER"] = "test"
 ENV["HETZNER_CONNECTION_STRING"] = "https://robot-ws.your-server.de"
 ENV["HETZNER_USER"] = "user1"
 ENV["HETZNER_PASSWORD"] = "pass"
+ENV["OMNIAUTH_GITHUB_ID"] = "1234567890"
 require_relative "./coverage_helper"
 require_relative "../loader"
 require "rspec"
@@ -41,6 +42,7 @@ DatabaseCleaner.url_allowlist = [
 
 Warning.ignore([:not_reached, :unused_var], /.*lib\/mail\/parser.*/)
 Warning.ignore([:mismatched_indentations], /.*lib\/stripe\/api_operations.*/)
+# Warning.ignore([:method_redefined], /.*gems\/rodauth-omniauth.*/)
 
 RSpec.configure do |config|
   config.define_derived_metadata(file_path: %r{/spec/}) do |metadata|
