@@ -51,25 +51,31 @@ class Prog::Vnet::RekeyNic < Prog::Base
     nap 1
   end
 
+  def upsert_policy(namespace, src, dst, tmpl_src, tmpl_dst, reqid, spi, dir)
+    policy_not_exists = sshable_cmd("sudo ip -n #{namespace} xfrm policy show " \
+      "src #{src} dst #{dst} dir #{dir} tmpl src #{tmpl_src} dst #{tmpl_dst} ").empty?
+    
+    put_type = policy_not_exists ? "add" : "update"
+    sshable_cmd("sudo ip -n #{namespace} xfrm policy #{put_type} " \
+      "src #{src} dst #{dst} dir #{dir} tmpl src #{tmpl_src} dst #{tmpl_dst} " \
+      "spi #{spi} proto esp reqid #{reqid} mode tunnel")
+  end
+
+
   def policy_update(tunnel, dir)
     namespace = tunnel.vm_name(nic)
     tmpl_src = subdivide_network(tunnel.src_nic.vm.ephemeral_net6).network
     tmpl_dst = subdivide_network(tunnel.dst_nic.vm.ephemeral_net6).network
     reqid = frame["payload"][tunnel.src_nic.id]["reqid"]
+    src4 = tunnel.src_nic.private_ipv4
+    dst4 = tunnel.dst_nic.private_ipv4
+    src6 = tunnel.src_nic.private_ipv6
+    dst6 = tunnel.dst_nic.private_ipv6
+    spi4 = frame["payload"][tunnel.src_nic.id]["spi4"]
+    spi6 = frame["payload"][tunnel.src_nic.id]["spi6"]
 
-    sshable_cmd("sudo ip -n #{namespace} xfrm policy update " \
-      "src #{tunnel.src_nic.private_ipv4} " \
-      "dst #{tunnel.dst_nic.private_ipv4} dir #{dir} " \
-      "tmpl src #{tmpl_src} dst #{tmpl_dst} " \
-      "spi #{frame["payload"][tunnel.src_nic.id]["spi4"]} " \
-      "proto esp reqid #{reqid} mode tunnel")
-
-    sshable_cmd("sudo ip -n #{namespace} xfrm policy update " \
-      "src #{tunnel.src_nic.private_ipv6} " \
-      "dst #{tunnel.dst_nic.private_ipv6} dir #{dir} " \
-      "tmpl src #{tmpl_src} dst #{tmpl_dst} " \
-      "spi #{frame["payload"][tunnel.src_nic.id]["spi6"]} " \
-      "proto esp reqid #{reqid} mode tunnel")
+    upsert_policy(namespace, src4, dst4, tmpl_src, tmpl_dst, reqid, spi4, dir)
+    upsert_policy(namespace, src6, dst6, tmpl_src, tmpl_dst, reqid, spi6, dir)
   end
 
   def replace_policies

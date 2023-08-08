@@ -35,11 +35,6 @@ class Prog::Vnet::SubnetNexus < Prog::Base
 
     when_refresh_mesh_set? do
       ps.update(state: "refreshing_mesh")
-      hop :refresh_mesh
-    end
-
-    when_refresh_keys_set? do
-      ps.update(state: "refreshing_keys")
       hop :refresh_keys
     end
 
@@ -106,7 +101,11 @@ class Prog::Vnet::SubnetNexus < Prog::Base
 
   def wait_state_dropped
     reap
-    hop :wait if leaf?
+    if leaf?
+      ps.update(state: "waiting")
+      decr_refresh_mesh
+      hop :wait
+    end
     donate
   end
 
