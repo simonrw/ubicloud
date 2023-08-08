@@ -33,10 +33,6 @@ class Prog::Vnet::NicNexus < Prog::Base
   end
 
   def wait
-    when_refresh_mesh_set? do
-      hop :refresh_mesh
-    end
-
     when_detach_vm_set? do
       hop :detach_vm
     end

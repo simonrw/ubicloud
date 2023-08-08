@@ -109,21 +109,6 @@ class Prog::Vnet::SubnetNexus < Prog::Base
     donate
   end
 
-  def refresh_mesh
-    ps.nics.map(&:incr_refresh_mesh)
-    hop :wait_refresh_mesh
-  end
-
-  def wait_refresh_mesh
-    unless ps.nics.any? { SemSnap.new(_1.id).set?("refresh_mesh") }
-      ps.update(state: "waiting")
-      decr_refresh_mesh
-      hop :wait
-    end
-
-    nap 1
-  end
-
   def destroy
     if ps.nics.any? { |n| !n.vm_id.nil? }
       fail "Cannot destroy subnet with active nics, first clean up the attached resources"
