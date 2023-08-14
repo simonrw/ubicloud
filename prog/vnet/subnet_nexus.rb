@@ -28,6 +28,10 @@ class Prog::Vnet::SubnetNexus < Prog::Base
     @ps ||= PrivateSubnet[strand.id]
   end
 
+  def rekeying_nics
+    ps.nics.select { !_1.rekey_payload.nil? }
+  end
+
   def wait
     when_destroy_set? do
       hop :destroy
@@ -78,7 +82,7 @@ class Prog::Vnet::SubnetNexus < Prog::Base
   end
 
   def wait_inbound_setup
-    if ps.nics.all? { |nic| nic.strand.label == "wait_rekey_outbound_trigger" }
+    if rekeying_nics.all? { |nic| nic.strand.label == "wait_rekey_outbound_trigger" }
       ps.nics.each(&:incr_trigger_outbound_update)
       hop :wait_outbound_setup
     end
@@ -87,7 +91,7 @@ class Prog::Vnet::SubnetNexus < Prog::Base
   end
 
   def wait_outbound_setup
-    if ps.nics.all? { |nic| nic.strand.label == "wait_rekey_old_state_drop_trigger" }
+    if rekeying_nics.all? { |nic| nic.strand.label == "wait_rekey_old_state_drop_trigger" }
       ps.nics.each(&:incr_old_state_drop_trigger)
       hop :wait_old_state_drop
     end
@@ -96,12 +100,13 @@ class Prog::Vnet::SubnetNexus < Prog::Base
   end
 
   def wait_old_state_drop
-    if ps.nics.all? { |nic| nic.strand.label == "wait" }
+    if rekeying_nics.all? { |nic| nic.strand.label == "wait" }
       ps.update(state: "waiting")
-      ps.nics.each do |nic|
+      decr_refresh_keys unless ps.nics.any? { _1.rekey_payload.nil? }
+      rekeying_nics.each do |nic|
         nic.update(encryption_key: nil, rekey_payload: nil)
       end
-      decr_refresh_keys
+
       hop :wait
     end
     donate
