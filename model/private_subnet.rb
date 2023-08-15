@@ -5,6 +5,12 @@ require_relative "../model"
 class PrivateSubnet < Sequel::Model
   many_to_many :vms, join_table: Nic.table_name, left_key: :private_subnet_id, right_key: :vm_id
   one_to_many :nics, key: :private_subnet_id
+  one_to_many :active_nics, key: :private_subnet_id, class: Nic do |nic_dataset|
+    nic_dataset.where(state: "waiting")
+  end
+  one_to_many :to_be_added_nics, key: :private_subnet_id, class: Nic do |nic_dataset|
+    nic_dataset.where(state: "creating")
+  end
   one_to_one :strand, key: :id
 
   PRIVATE_SUBNET_RANGES = [
@@ -36,7 +42,7 @@ class PrivateSubnet < Sequel::Model
   end
 
   include SemaphoreMethods
-  semaphore :destroy, :refresh_mesh, :refresh_keys
+  semaphore :destroy, :refresh_keys, :add_new_nic
 
   def self.random_subnet
     PRIVATE_SUBNET_RANGES.sample
@@ -57,10 +63,11 @@ class PrivateSubnet < Sequel::Model
   end
 
   def add_nic(nic)
-    nics.each do |n|
+    active_nics.each do |n|
       next if n.id == nic.id
       IpsecTunnel.create_with_id(src_nic_id: n.id, dst_nic_id: nic.id)
       IpsecTunnel.create_with_id(src_nic_id: nic.id, dst_nic_id: n.id)
     end
+    incr_add_new_nic
   end
 end

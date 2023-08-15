@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Prog::Vnet::SubnetNexus < Prog::Base
-  semaphore :refresh_mesh, :destroy, :refresh_keys
+  semaphore :destroy, :refresh_keys, :add_new_nic
 
   def self.assemble(project_id, name: nil, location: "hetzner-hel1", ipv6_range: nil, ipv4_range: nil)
     project = Project[project_id]
@@ -37,14 +37,14 @@ class Prog::Vnet::SubnetNexus < Prog::Base
       hop :destroy
     end
 
-    when_refresh_mesh_set? do
-      ps.update(state: "refreshing_mesh")
-      hop :refresh_mesh
-    end
-
     when_refresh_keys_set? do
       ps.update(state: "refreshing_keys")
       hop :refresh_keys
+    end
+
+    when_add_new_nic_set? do
+      ps.update(state: "adding_new_nic")
+      hop :add_new_nic
     end
 
     nap 30
@@ -62,9 +62,52 @@ class Prog::Vnet::SubnetNexus < Prog::Base
     SecureRandom.random_number(100000) + 1
   end
 
-  def refresh_keys
-    payload = {}
+  def add_new_nic
+    nic = ps.to_be_added_nics.first
+    unless nic
+      ps.update(state: "waiting")
+      decr_add_new_nic
+      hop :wait
+    end
 
+    if ps.active_nics.count == 0
+      nic.incr_setup_trigger
+      hop :wait
+    end
+
+    ps.active_nics.each do |active_nic|
+      payload = {
+        spi4: gen_spi,
+        spi6: gen_spi,
+        reqid: gen_reqid
+      }
+      active_nic.update(encryption_key: gen_encryption_key, rekey_payload: payload)
+    end
+    nic.update(encryption_key: gen_encryption_key, rekey_payload: {spi4: gen_spi, spi6: gen_spi, reqid: gen_reqid})
+
+    ps.active_nics.each do |active_nic|
+      active_nic.incr_setup_dst_nic_tunnels
+    end
+
+    nic.incr_setup_trigger
+    hop :wait_setup
+  end
+
+  def wait_setup
+    puts "rekeying_nics: #{rekeying_nics.count}"
+    puts "LABELS: #{rekeying_nics.map(&:strand).map(&:label)}"
+    if rekeying_nics.all? { |nic| nic.strand.label == "wait_until_all_finish" }
+      if ps.to_be_added_nics.count == 0
+        decr_add_new_nic
+        incr_refresh_keys
+      end
+      rekeying_nics.each(&:incr_all_finish)
+      hop :wait
+    end
+    donate
+  end
+
+  def refresh_keys
     ps.nics.each do |nic|
       payload = {
         spi4: gen_spi,
@@ -110,34 +153,6 @@ class Prog::Vnet::SubnetNexus < Prog::Base
       hop :wait
     end
     donate
-  end
-
-  def refresh_mesh
-    DB.transaction do
-      ps.nics.each do |nic|
-        nic.update(encryption_key: gen_encryption_key)
-        nic.incr_refresh_mesh
-      end
-    end
-
-    hop :wait_refresh_mesh
-  end
-
-  def wait_refresh_mesh
-    unless ps.nics.any? { SemSnap.new(_1.id).set?("refresh_mesh") }
-      DB.transaction do
-        ps.update(state: "waiting")
-        ps.nics.each do |nic|
-          nic.update(encryption_key: nil)
-        end
-
-        decr_refresh_mesh
-      end
-
-      hop :wait
-    end
-
-    nap 1
   end
 
   def destroy

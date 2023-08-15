@@ -3,6 +3,28 @@
 class Prog::Vnet::RekeyNicTunnel < Prog::Base
   subject_is :nic
 
+  def all_tunnels
+    nic.src_ipsec_tunnels + nic.dst_ipsec_tunnels
+  end
+
+  def setup_nic_tunnels
+    nic.all_tunnels.each do |tunnel|
+      args = tunnel.src_nic.rekey_payload
+      create_state(tunnel, args)
+      policy_upsert(tunnel, "out", "add")
+      policy_upsert(tunnel, "fwd", "add")
+      create_private_routes(tunnel)
+    end
+
+    pop "setup_nic_tunnels is complete"
+  end
+
+  def create_private_routes(tunnel)
+    [tunnel.dst_nic.private_ipv6, tunnel.dst_nic.private_ipv4].each do |dst_ip|
+      sshable_cmd("sudo ip -n #{tunnel.vm_name(nic)} route replace #{dst_ip.to_s.shellescape} dev vethi#{tunnel.vm_name(nic)}")
+    end
+  end
+
   def setup_inbound
     nic.dst_ipsec_tunnels.each do |tunnel|
       args = tunnel.src_nic.rekey_payload
@@ -16,7 +38,7 @@ class Prog::Vnet::RekeyNicTunnel < Prog::Base
     nic.src_ipsec_tunnels.each do |tunnel|
       args = tunnel.src_nic.rekey_payload
       create_state(tunnel, args)
-      policy_update(tunnel, "out")
+      policy_upsert(tunnel, "out", "update")
     end
 
     pop "outbound_setup is complete"
@@ -61,13 +83,13 @@ class Prog::Vnet::RekeyNicTunnel < Prog::Base
       "aead 'rfc4106(gcm(aes))' #{key} 128")
   end
 
-  def policy_update_cmd(namespace, src, dst, tmpl_src, tmpl_dst, reqid, spi, dir)
-    sshable_cmd("sudo ip -n #{namespace} xfrm policy update " \
+  def policy_cmd(namespace, src, dst, tmpl_src, tmpl_dst, reqid, spi, dir, cmd)
+    sshable_cmd("sudo ip -n #{namespace} xfrm policy #{cmd} " \
       "src #{src} dst #{dst} dir #{dir} tmpl src #{tmpl_src} dst #{tmpl_dst} " \
       "proto esp reqid #{reqid} mode tunnel")
   end
 
-  def policy_update(tunnel, dir)
+  def policy_upsert(tunnel, dir, cmd)
     namespace = tunnel.vm_name(nic)
     tmpl_src = subdivide_network(tunnel.src_nic.vm.ephemeral_net6).network
     tmpl_dst = subdivide_network(tunnel.dst_nic.vm.ephemeral_net6).network
@@ -79,8 +101,8 @@ class Prog::Vnet::RekeyNicTunnel < Prog::Base
     spi4 = tunnel.src_nic.rekey_payload["spi4"]
     spi6 = tunnel.src_nic.rekey_payload["spi6"]
 
-    policy_update_cmd(namespace, src4, dst4, tmpl_src, tmpl_dst, reqid, spi4, dir)
-    policy_update_cmd(namespace, src6, dst6, tmpl_src, tmpl_dst, reqid, spi6, dir)
+    policy_update_cmd(namespace, src4, dst4, tmpl_src, tmpl_dst, reqid, spi4, dir, cmd)
+    policy_update_cmd(namespace, src6, dst6, tmpl_src, tmpl_dst, reqid, spi6, dir, cmd)
   end
 
   def subdivide_network(net)

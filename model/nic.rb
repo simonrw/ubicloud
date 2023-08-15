@@ -6,11 +6,19 @@ class Nic < Sequel::Model
   many_to_one :private_subnet
   many_to_one :vm
   one_to_many :src_ipsec_tunnels, key: :src_nic_id, class: IpsecTunnel
+  one_to_many :src_waiting_ipsec_tunnels, key: :src_nic_id, class: IpsecTunnel do |tunnel_dataset|
+    tunnel_dataset.where(state: "waiting")
+  end
   one_to_many :dst_ipsec_tunnels, key: :dst_nic_id, class: IpsecTunnel
+  one_to_many :dst_waiting_ipsec_tunnels, key: :dst_nic_id, class: IpsecTunnel do |tunnel_dataset|
+    tunnel_dataset.where(state: "waiting")
+  end
   one_to_one :strand, key: :id, class: Strand
   include ResourceMethods
   include SemaphoreMethods
-  semaphore :destroy, :refresh_mesh, :detach_vm, :start_rekey, :trigger_outbound_update, :old_state_drop_trigger
+  semaphore :destroy, :detach_vm, :start_rekey,
+    :trigger_outbound_update, :old_state_drop_trigger, :setup_nic,
+    :setup_trigger, :setup_dst_nic_tunnels, :all_finish
 
   plugin :column_encryption do |enc|
     enc.column :encryption_key

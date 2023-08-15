@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 class Prog::Vnet::NicNexus < Prog::Base
-  semaphore :destroy, :refresh_mesh, :detach_vm, :start_rekey, :trigger_outbound_update, :old_state_drop_trigger
+  subject_is :nic
+  semaphore :destroy, :detach_vm, :start_rekey, :trigger_outbound_update, :old_state_drop_trigger, :setup_nic, :setup_trigger, :setup_dst_nic_tunnels, :all_finish
 
   def self.assemble(private_subnet_id, name: nil, ipv6_addr: nil, ipv4_addr: nil)
     unless (subnet = PrivateSubnet[private_subnet_id])
@@ -15,15 +16,10 @@ class Prog::Vnet::NicNexus < Prog::Base
     ipv4_addr ||= subnet.random_private_ipv4.to_s
 
     DB.transaction do
-      nic = Nic.create(private_ipv6: ipv6_addr, private_ipv4: ipv4_addr, mac: gen_mac,
+      Nic.create(private_ipv6: ipv6_addr, private_ipv4: ipv4_addr, mac: gen_mac,
         name: name, private_subnet_id: private_subnet_id) { _1.id = ubid.to_uuid }
-      subnet.add_nic(nic)
-      Strand.create(prog: "Vnet::NicNexus", label: "wait") { _1.id = ubid.to_uuid }
+      Strand.create(prog: "Vnet::NicNexus", label: "wait_vm") { _1.id = ubid.to_uuid }
     end
-  end
-
-  def nic
-    @nic ||= Nic[strand.id]
   end
 
   def before_run
@@ -32,11 +28,47 @@ class Prog::Vnet::NicNexus < Prog::Base
     end
   end
 
-  def wait
-    when_refresh_mesh_set? do
-      hop :refresh_mesh
+  def wait_vm
+    when_setup_nic_set? do
+      hop :setup_nic
     end
+    nap 5
+  end
 
+  def setup_nic
+    nic.private_subnet.add_nic(nic)
+    hop :wait_setup_trigger
+  end
+
+  def wait_setup_trigger
+    when_setup_trigger_set? do
+      if nic.src_ipsec_tunnels.empty?
+        nic.update(state: "waiting")
+        decr_setup_trigger
+        hop :wait
+      end
+      hop :setup_tunnel
+    end
+    donate
+  end
+
+  def setup_tunnel
+    bud Prog::Vnet::RekeyNicTunnel, {}, :setup_nic_tunnels
+    hop :wait_setup_tunnels
+  end
+
+  def wait_setup_tunnels
+    reap
+    if leaf?
+      # nic.src_ipsec_tunnels.each { _1.update(state: "created") }
+      nic.update(state: "created")
+      decr_setup_trigger
+      hop :wait_until_all_finish
+    end
+    donate
+  end
+
+  def wait
     when_detach_vm_set? do
       hop :detach_vm
     end
@@ -45,7 +77,29 @@ class Prog::Vnet::NicNexus < Prog::Base
       hop :start_rekey
     end
 
+    when_setup_dst_nic_tunnels_set? do
+      bud Prog::Vnet::RekeyNicTunnel, {}, :setup_nic_tunnels
+      hop :wait_setup_dst_nic_tunnels
+    end
+
     nap 30
+  end
+
+  def wait_setup_dst_nic_tunnels
+    reap
+    if leaf?
+      decr_setup_dst_nic_tunnels
+      hop :wait_until_all_finish
+    end
+    donate
+  end
+
+  def wait_until_all_finish
+    when_all_finish_set? do
+      decr_all_finish
+      hop :wait
+    end
+    donate
   end
 
   def start_rekey
@@ -96,20 +150,6 @@ class Prog::Vnet::NicNexus < Prog::Base
     donate
   end
 
-  def refresh_mesh
-    if nic.vm_id.nil?
-      decr_refresh_mesh
-      hop :wait
-    end
-
-    nic.src_ipsec_tunnels.each do |tunnel|
-      tunnel.refresh
-    end
-
-    decr_refresh_mesh
-    hop :wait
-  end
-
   def destroy
     if nic.vm
       fail "Cannot destroy nic with active vm, first clean up the attached resources"
@@ -118,7 +158,6 @@ class Prog::Vnet::NicNexus < Prog::Base
     DB.transaction do
       nic.src_ipsec_tunnels_dataset.destroy
       nic.dst_ipsec_tunnels_dataset.destroy
-      nic.private_subnet.incr_refresh_mesh
       nic.destroy
     end
 
@@ -130,7 +169,6 @@ class Prog::Vnet::NicNexus < Prog::Base
       nic.update(vm_id: nil)
       nic.src_ipsec_tunnels_dataset.destroy
       nic.dst_ipsec_tunnels_dataset.destroy
-      nic.private_subnet.incr_refresh_mesh
       decr_detach_vm
     end
 
