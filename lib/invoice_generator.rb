@@ -17,6 +17,7 @@ class InvoiceGenerator
         project_content = {}
         project_content[:project_id] = project_id
         project_content[:project_name] = project_records.first[:project_name]
+        project_content[:billing_info] = project_records.first[:billing_info]
 
         project_content[:resources] = []
         project_content[:cost] = 0
@@ -32,21 +33,23 @@ class InvoiceGenerator
             line_item_content[:location] = li[:location]
             line_item_content[:resource_type] = li[:resource_type]
             line_item_content[:resource_family] = li[:resource_family]
-            line_item_content[:amount] = li[:amount]
-            line_item_content[:cost] = li[:cost]
+            line_item_content[:description] = BillingRate.line_item_description(li[:resource_type], li[:resource_family], li[:amount])
+            line_item_content[:amount] = li[:amount].to_f
+            line_item_content[:duration] = li[:duration]
+            line_item_content[:cost] = li[:cost].to_f
 
             resource_content[:line_items].push(line_item_content)
-            resource_content[:cost] += line_item_content[:cost]
+            resource_content[:cost] += line_item_content[:cost].to_f
           end
 
           project_content[:resources].push(resource_content)
-          project_content[:cost] += resource_content[:cost]
+          project_content[:cost] += resource_content[:cost].to_f
         end
 
+        invoices.push(project_content)
+
         if @save_result
-          Invoice.create_with_id(project_id: project_id, content: project_content)
-        else
-          invoices.push(project_content)
+          Invoice.create_with_id(project_id: project_id, content: project_content, begin_time: @begin_time, end_time: @end_time)
         end
       end
     end
@@ -55,7 +58,7 @@ class InvoiceGenerator
   end
 
   def active_billing_records
-    active_billing_records = BillingRecord.eager(:project)
+    active_billing_records = BillingRecord.eager(project: :billing_info)
       .where { |br| Sequel.pg_range(br.span).overlaps(Sequel.pg_range(@begin_time...@end_time)) }
       .all
 
@@ -69,7 +72,9 @@ class InvoiceGenerator
         resource_type: br.billing_rate["resource_type"],
         resource_family: br.billing_rate["resource_family"],
         amount: br.amount,
-        cost: (br.amount * br.duration(@begin_time, @end_time) * br.billing_rate["unit_price"])
+        duration: br.duration(@begin_time, @end_time).ceil,
+        cost: (br.amount * br.duration(@begin_time, @end_time) * br.billing_rate["unit_price"]),
+        billing_info: br.project.billing_info ? Serializers::Web::BillingInfo.serialize(br.project.billing_info) : nil
       }
     end
   end

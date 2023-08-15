@@ -3,6 +3,7 @@ $(function() {
   setupLocationBasedPrices();
   setupLocationBasedOptions();
   setupAutoRefresh();
+  setupPrint();
 });
 
 $(".toggle-mobile-menu").on("click", function (event) {
@@ -207,5 +208,11 @@ function setupAutoRefresh() {
     setTimeout(function() {
       location.reload();
     }, interval * 1000);
+  });
+}
+
+function setupPrint() {
+  $("div.print-page").each(function() {
+    window.print();
   });
 }

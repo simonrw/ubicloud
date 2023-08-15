@@ -4,4 +4,8 @@ require_relative "../model"
 
 class Invoice < Sequel::Model
   include ResourceMethods
+
+  def path
+    "/invoice/#{ubid}"
+  end
 end

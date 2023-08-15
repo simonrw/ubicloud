@@ -16,4 +16,15 @@ class BillingRate
   def self.from_id(billing_rate_id)
     rates.find { _1["id"] == billing_rate_id }
   end
+
+  def self.line_item_description(resource_type, resource_family, amount)
+    case resource_type
+    when "VmCores"
+      "#{resource_family}-#{(amount * 2).to_i} Virtual Machine"
+    when "IPAddress"
+      "#{resource_family} Address"
+    else
+      "#{resource_family} #{resource_type}"
+    end
+  end
 end
